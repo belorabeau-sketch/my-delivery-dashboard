@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة والستايل
 st.set_page_config(page_title="Casa Cosmetique Live Dashboard", layout="wide")
 
 # 2. جلب المفاتيح من Secrets
@@ -13,18 +13,34 @@ try:
     YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"]
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
-except:
-    st.error("⚠️ يرجى التأكد من ضبط Secrets (GEMINI_KEY و DELIVERY_TOKEN)")
+except Exception as e:
+    st.error("⚠️ يرجى التأكد من إضافة GEMINI_KEY و DELIVERY_TOKEN في إعدادات Secrets على Streamlit.")
     st.stop()
 
-# 3. دالة جلب البيانات مع تواريخ تلقائية (Live)
-def fetch_live_data():
-    # تحديد التاريخ تلقائياً (من شهر مضى إلى اليوم)
-    end_date = datetime.now().strftime('%Y-%m-%d')
+# 3. نظام تسجيل الدخول
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.title("🔐 دخول الإدارة - كازا كوزميتيك")
+    user = st.text_input("اسم المستخدم")
+    pwd = st.text_input("كلمة المرور", type="password")
+    if st.button("دخول"):
+        if user == "yassine" and pwd == "casa2026":
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("بيانات الدخول غير صحيحة")
+    st.stop()
+
+# --- 4. دالة جلب البيانات من YouCan Ship برمجياً ---
+def fetch_youcan_data():
+    # حساب تواريخ الشهر الحالي تلقائياً لجعل اللوحة Live
+    today = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     
-    # رابط YouCan Ship مع الفلترة التلقائية للتواريخ
-    url = f"https://api.youcanship.com/v1/orders?start_date={start_date}&end_date={end_date}"
+    # الرابط الصحيح لطلب الطلبيات مع التواريخ
+    url = f"https://api.youcanship.com/v1/orders?start_date={start_date}&end_date={today}"
     headers = {
         "Authorization": f"Bearer {YOUCAN_TOKEN}",
         "Accept": "application/json"
@@ -35,49 +51,59 @@ def fetch_live_data():
         if response.status_code == 200:
             return response.json().get('data', [])
         else:
-            return None
-    except:
-        return None
+            return f"Error: {response.status_code}"
+    except Exception as e:
+        return str(e)
 
-# 4. واجهة المستخدم الاحترافية (تصميم Ozon)
-st.title("📊 لوحة تحكم كازا كوزميتيك الحية")
-st.write(f"تحديث تلقائي للفترة من {(datetime.now() - timedelta(days=30)).strftime('%d/%m')} إلى اليوم")
+# --- 5. واجهة العرض الاحترافية (تصميم Ozon) ---
+st.sidebar.title("Coopérative Casa Cosmetique")
+if st.sidebar.button("تسجيل الخروج"):
+    st.session_state.logged_in = False
+    st.rerun()
 
-if st.button("🔄 تحديث البيانات الآن"):
-    data = fetch_live_data()
-    
-    if data:
-        df = pd.DataFrame(data)
+st.title("📊 لوحة تحكم الشحنات الحية (YouCan Ship)")
+st.write(f"تحديث تلقائي للفترة: من **{ (datetime.now() - timedelta(days=30)).strftime('%d-%m-%Y') }** إلى اليوم")
+
+if st.button("🔄 تحديث البيانات الحقيقية الآن"):
+    with st.spinner('جاري الاتصال بـ YouCan Ship...'):
+        data = fetch_youcan_data()
         
-        # حساب الإحصائيات الحقيقية
-        total_orders = len(df)
-        delivered = len(df[df['status'].str.contains('delivered|complete', case=False, na=False)])
-        returned = len(df[df['status'].str.contains('return|refuse', case=False, na=False)])
-        ongoing = total_orders - (delivered + returned)
-        
-        # عرض البطاقات العلوية (Stats Cards)
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("الطلبيات المستلمة", delivered, f"{round((delivered/total_orders)*100, 1)}%" if total_orders > 0 else "0%")
-        c2.metric("الطلبيات المرتجعة", returned, f"-{round((returned/total_orders)*100, 1)}%", delta_color="inverse")
-        c3.metric("في طور التوزيع", ongoing)
-        c4.metric("إجمالي المبالغ", f"{df['total_price'].sum()} DH")
-
-        st.divider()
-
-        # عرض الجدول المفصل والتحليل
-        col_left, col_right = st.columns([2, 1])
-        
-        with col_left:
-            st.subheader("📋 تفاصيل الشحنات الأخيرة")
-            st.dataframe(df[['tracking_number', 'city', 'status', 'total_price']], use_container_width=True)
+        if isinstance(data, list) and len(data) > 0:
+            df = pd.DataFrame(data)
             
-        with col_right:
-            st.subheader("🤖 تحليل Gemini AI")
-            prompt = f"حلل أداء متجري Casa Cosmetique: إجمالي {total_orders} طلب، {delivered} تم تسليمها، {returned} مرتجعة. قدم نصيحة سريعة."
-            try:
-                response = model.generate_content(prompt)
-                st.info(response.text)
-            except:
-                st.write("الذكاء الاصطناعي مشغول حالياً، حاول لاحقاً.")
-    else:
-        st.error("لم نتمكن من سحب البيانات تلقائياً. تأكد من أن التوكن فعال وأن هناك طلبيات في آخر 30 يوم.")
+            # حساب الإحصائيات الحقيقية
+            total_orders = len(df)
+            delivered = len(df[df['status'].str.contains('delivered|complete', case=False, na=False)])
+            returned = len(df[df['status'].str.contains('return|refuse|cancel', case=False, na=False)])
+            in_transit = total_orders - (delivered + returned)
+            
+            # حساب المبالغ (نستخدم حقل total_price من الـ API)
+            total_money = df['total_price'].astype(float).sum() if 'total_price' in df.columns else 0
+
+            # عرض البطاقات العلوية (Stats Cards)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("الطلبات المسلمة", delivered, f"{round((delivered/total_orders)*100, 1)}%" if total_orders > 0 else "0%")
+            c2.metric("المرتجعات", returned, f"-{round((returned/total_orders)*100, 1)}%", delta_color="inverse")
+            c3.metric("قيد التوزيع", in_transit)
+            c4.metric("إجمالي المبالغ", f"{total_money} DH")
+
+            st.divider()
+
+            # عرض الجدول والتحليل
+            col_table, col_ai = st.columns([2, 1])
+            
+            with col_table:
+                st.subheader("📋 تفاصيل الطلبيات الحقيقية")
+                cols = ['tracking_number', 'city', 'status', 'total_price']
+                st.dataframe(df[cols] if all(c in df.columns for c in cols) else df, use_container_width=True)
+                
+            with col_ai:
+                st.subheader("🤖 تحليل ذكاء Gemini AI")
+                prompt = f"حلل أداء المبيعات لشركة كازا كوزميتيك: {total_orders} طلب إجمالي، {delivered} تسليم، {returned} مرتجع. قدم نصيحة واحدة باللغة العربية."
+                try:
+                    response = model.generate_content(prompt)
+                    st.info(response.text)
+                except:
+                    st.write("الذكاء الاصطناعي قيد التحديث، حاول لاحقاً.")
+        else:
+            st.warning(f"لم نتمكن من جلب بيانات. تأكد أن التوكن صحيح وأن لديك طلبيات في آخر 30 يوم. (التفاصيل: {data})")
