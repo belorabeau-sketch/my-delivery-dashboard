@@ -4,72 +4,71 @@ import requests
 import pandas as pd
 
 # 1. إعدادات الصفحة
-st.set_page_config(page_title="Casa Cosmetique Final Fix", layout="wide")
+st.set_page_config(page_title="Casa Cosmetique Dashboard", layout="wide")
 
-# 2. جلب المفاتيح من Secrets
+# 2. جلب المفاتيح
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_KEY"]
-    YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"].strip() # حذف أي مسافات زائدة
+    YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"].strip()
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
 except:
-    st.error("⚠️ تأكد من وضع المفاتيح في Secrets.")
+    st.error("⚠️ يرجى ضبط Secrets بشكل صحيح.")
     st.stop()
 
-# 3. دالة جلب البيانات الاحترافية
-def fetch_data_final():
-    # هذا هو الرابط الأكثر دقة لجلب الطلبات في YouCan Ship
+# 3. دالة جلب البيانات المتقدمة (حل مشكلة char 0)
+def fetch_data_advanced():
+    # الرابط الرسمي المباشر
     url = "https://api.youcanship.com/v1/orders"
     
+    # إضافة User-Agent لمحاكاة متصفح حقيقي (هذا هو السر!)
     headers = {
         "Authorization": f"Bearer {YOUCAN_TOKEN}",
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         
-        # إذا نجح الاتصال
         if response.status_code == 200:
-            return response.json().get('data', []), "SUCCESS", None
+            # التأكد من وجود محتوى قبل التحويل لـ JSON
+            if response.text:
+                return response.json().get('data', []), "SUCCESS", None
+            else:
+                return None, "EMPTY_RESPONSE", "السيرفر رد بصفحة فارغة تماماً"
         else:
-            # إرجاع نص الخطأ الخام لفهمه
-            return None, f"خطأ {response.status_code}", response.text
+            return None, f"ERROR_{response.status_code}", response.text
             
     except Exception as e:
-        return None, "فشل اتصال", str(e)
+        return None, "CONNECTION_FAILED", str(e)
 
-# 4. الواجهة الرسومية (تصميم Ozon الاحترافي)
-st.title("📊 لوحة تحكم كازا كوزميتيك - الإصدار النهائي")
+# 4. الواجهة الرسومية (Ozon Style)
+st.title("📊 لوحة تحكم كازا كوزميتيك - الربط المباشر")
 
-if st.button("🚀 جلب البيانات الحقيقية الآن"):
+if st.button("🚀 تحديث البيانات الحقيقية"):
     with st.spinner('جاري الاتصال بـ YouCan Ship...'):
-        orders, status, raw_debug = fetch_data_final()
+        orders, status, debug_info = fetch_data_advanced()
         
         if status == "SUCCESS":
-            if orders:
-                df = pd.DataFrame(orders)
-                # عرض الإحصائيات بأسلوب Ozon
-                total = len(df)
-                st.success(f"✅ تم جلب {total} طلب بنجاح!")
-                
+            df = pd.DataFrame(orders)
+            if not df.empty:
+                # عرض الإحصائيات (مثل Ozon)
                 c1, c2, c3 = st.columns(3)
-                c1.metric("إجمالي الطلبات", total)
-                c2.metric("المبلغ الإجمالي", f"{df['total_price'].sum()} DH" if 'total_price' in df.columns else "0")
+                c1.metric("إجمالي الطلبات", len(df))
+                c2.metric("أحدث طلب", df['tracking_number'].iloc[0] if 'tracking_number' in df.columns else "N/A")
                 
                 st.divider()
-                st.subheader("📋 تفاصيل الشحنات")
+                st.subheader("📋 قائمة الشحنات الحقيقية")
                 st.dataframe(df)
+                
+                # تحليل Gemini
+                st.subheader("🤖 تحليل الذكاء الاصطناعي")
+                prompt = f"حلل أداء المبيعات بناءً على هذه البيانات: {orders[:3]}"
+                st.info(model.generate_content(prompt).text)
             else:
-                st.warning("✅ تم الاتصال، ولكن لا توجد طلبيات في حسابك حالياً.")
+                st.warning("✅ تم الاتصال ولكن القائمة فارغة.")
         else:
             st.error(f"❌ فشل الاتصال: {status}")
-            with st.expander("🔍 تفاصيل تقنية للمبرمج (Debug)"):
-                st.write("الرد القادم من السيرفر:")
-                st.code(raw_debug)
-
-# 5. تحليل Gemini
-st.divider()
-st.subheader("🤖 تحليل الذكاء الاصطناعي")
-st.write("بمجرد ظهور البيانات أعلاه، سيقوم Gemini بتحليلها لك هنا.")
+            with st.expander("🔍 تفاصيل الخطأ التقني"):
+                st.write(f"الرد من السيرفر: {debug_info}")
