@@ -1,109 +1,49 @@
 import streamlit as st
 import google.generativeai as genai
 import requests
-import pandas as pd
-from datetime import datetime
 
-# 1. إعدادات الصفحة (Ozon Style)
-st.set_page_config(page_title="Casa Cosmetique Dashboard", layout="wide")
+# 1. إعدادات الصفحة
+st.set_page_config(page_title="Diagnostic Mode | Casa Cosmetique", layout="wide")
 
-# 2. جلب المفاتيح من Secrets
+# 2. جلب المفاتيح
 try:
-    GEMINI_API_KEY = st.secrets["GEMINI_KEY"]
     YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"].strip()
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception as e:
-    st.error("⚠️ خطأ: تأكد من ضبط GEMINI_KEY و DELIVERY_TOKEN في Secrets.")
+except:
+    st.error("⚠️ التوكن غير موجود في Secrets!")
     st.stop()
 
-# 3. نظام تسجيل الدخول
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+st.title("🔍 وضع تشخيص الاتصال - Casa Cosmetique")
+st.write("سنقوم الآن بتجربة كل الطرق الممكنة للاتصال بـ YouCan Ship.")
 
-if not st.session_state.logged_in:
-    st.title("🔐 لوحة تحكم كازا كوزميتيك")
-    user = st.text_input("اسم المستخدم")
-    pwd = st.text_input("كلمة المرور", type="password")
-    if st.button("دخول"):
-        if user == "yassine" and pwd == "casa2026":
-            st.session_state.logged_in = True
-            st.rerun()
-        else:
-            st.error("بيانات الدخول خاطئة")
-    st.stop()
-
-# --- 4. دالة جلب البيانات (تعديل الرابط والترويسة) ---
-def fetch_youcan_data():
-    # الرابط المعتمد في آخر تحديث لـ YouCan Ship
-    url = "https://api.youcanship.com/v1/orders"
+if st.button("🚀 بدء فحص الاتصال الآن"):
+    # قائمة الروابط المحتملة بناءً على أنظمة YouCan المختلفة
+    endpoints = [
+        "https://api.youcanship.com/v1/orders",
+        "https://api.youcanship.com/v1/ship/orders",
+        "https://api.youcanship.com/v1/user/orders"
+    ]
     
     headers = {
         "Authorization": f"Bearer {YOUCAN_TOKEN}",
         "Accept": "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0"  # ضروري لتجنب رفض السيرفر (char 0)
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=25)
-        if response.status_code == 200:
-            res_json = response.json()
-            # التعامل مع شكل البيانات المختلف
-            if isinstance(res_json, dict):
-                return res_json.get('data', []), "SUCCESS"
-            elif isinstance(res_json, list):
-                return res_json, "SUCCESS"
-            return [], "EMPTY_JSON"
-        else:
-            return None, f"Status: {response.status_code}"
-    except Exception as e:
-        return None, str(e)
 
-# --- 5. واجهة العرض الاحترافية ---
-st.title("📊 لوحة تحكم الشحنات الذكية (Live)")
-st.write(f"مرحباً ياسين | تحديث تلقائي: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-
-if st.sidebar.button("تسجيل الخروج"):
-    st.session_state.logged_in = False
-    st.rerun()
-
-if st.button("🔄 تحديث ومزامنة البيانات الحقيقية الآن"):
-    with st.spinner('جاري الاتصال بـ YouCan Ship وسحب البيانات...'):
-        orders, status = fetch_youcan_data()
-        
-        if status == "SUCCESS" and orders:
-            df = pd.DataFrame(orders)
+    for url in endpoints:
+        st.write(f"---")
+        st.write(f"📡 محاولة الاتصال بالرابط: `{url}`")
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            st.write(f"🔹 كود الاستجابة (Status Code): `{response.status_code}`")
             
-            # حساب الإحصائيات بأسلوب Ozon
-            total = len(df)
-            # محاولة قراءة الحالات (Status) والمبالغ (Total)
-            delivered = len(df[df['status'].str.contains('deliver|complete|success', case=False, na=False)])
-            returned = len(df[df['status'].str.contains('return|refuse|cancel', case=False, na=False)])
-            
-            # عرض البطاقات (Metrics)
-            c1, c2, c3 = st.columns(3)
-            c1.metric("إجمالي الطلبيات", total)
-            c2.metric("تم التوصيل (Livré)", delivered, f"{round((delivered/total)*100, 1)}%" if total > 0 else "0%")
-            c3.metric("المرتجعات (Retour)", returned, f"-{round((returned/total)*100, 1)}%", delta_color="inverse")
+            if response.status_code == 200:
+                st.success(f"✅ نجح الاتصال بهذا الرابط!")
+                st.json(response.json()) # عرض البيانات الحقيقية
+                break
+            else:
+                st.warning(f"❌ رد السيرفر: {response.text[:200]}")
+        except Exception as e:
+            st.error(f"💥 خطأ تقني: {str(e)}")
 
-            st.divider()
-
-            # عرض الجدول والتحليل
-            col_t, col_ai = st.columns([2, 1])
-            with col_t:
-                st.subheader("📋 قائمة الشحنات الحقيقية")
-                st.dataframe(df, use_container_width=True)
-            
-            with col_ai:
-                st.subheader("🤖 تحليل Gemini AI لبياناتك")
-                try:
-                    # إرسال عينة من البيانات لـ Gemini للتحليل
-                    prompt = f"بصفتك خبير تجارة إلكترونية في المغرب، حلل هذه البيانات لـ Casa Cosmetique: {orders[:5]}. أعط نصيحة لزيادة المبيعات."
-                    response = model.generate_content(prompt)
-                    st.info(response.text)
-                except:
-                    st.write("الذكاء الاصطناعي يحلل البيانات حالياً...")
-        else:
-            st.error(f"❌ فشل جلب البيانات: {status}")
-            st.info("نصيحة: تأكد أن التوكن الجديد 'wallenssine' مضاف في Secrets بدون أي مسافات زائدة.")
+    st.divider()
+    st.info("💡 إذا كانت كل الردود أعلاه فارغة أو تعطيك 401، فهذا يعني أن 'التوكن' يحتاج لإعادة نسخ من إعدادات YouCan Ship مع التأكد من اختيار (Orders: Read).")
