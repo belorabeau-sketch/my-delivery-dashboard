@@ -2,9 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 import requests
 import pandas as pd
+from datetime import datetime, timedelta
 
-# 1. إعداد الصفحة
-st.set_page_config(page_title="Casa Cosmetique Real Dashboard", layout="wide")
+# 1. إعدادات الصفحة
+st.set_page_config(page_title="Casa Cosmetique Live Dashboard", layout="wide")
 
 # 2. جلب المفاتيح من Secrets
 try:
@@ -12,85 +13,71 @@ try:
     YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"]
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception as e:
-    st.error("⚠️ خطأ في الإعدادات: يرجى التأكد من وضع GEMINI_KEY و DELIVERY_TOKEN في Secrets.")
+except:
+    st.error("⚠️ يرجى التأكد من ضبط Secrets (GEMINI_KEY و DELIVERY_TOKEN)")
     st.stop()
 
-# 3. نظام تسجيل الدخول
-def check_password():
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-    if not st.session_state["password_correct"]:
-        st.title("🔐 دخول الإدارة - كازا كوزميتيك")
-        user = st.text_input("اسم المستخدم", placeholder="yassine")
-        pwd = st.text_input("كلمة المرور", type="password", placeholder="casa2026")
-        if st.button("دخول"):
-            if user == "yassine" and pwd == "casa2026":
-                st.session_state["password_correct"] = True
-                st.rerun()
-            else:
-                st.error("❌ بيانات الدخول خاطئة")
-        return False
-    return True
-
-# --- 4. دالة جلب البيانات الحقيقية من YouCan Ship ---
-def fetch_actual_data():
-    # الرابط الرسمي لـ API YouCan Ship لجلب الطلبات
-    url = "https://api.youcanship.com/v1/orders" 
+# 3. دالة جلب البيانات مع تواريخ تلقائية (Live)
+def fetch_live_data():
+    # تحديد التاريخ تلقائياً (من شهر مضى إلى اليوم)
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    
+    # رابط YouCan Ship مع الفلترة التلقائية للتواريخ
+    url = f"https://api.youcanship.com/v1/orders?start_date={start_date}&end_date={end_date}"
     headers = {
         "Authorization": f"Bearer {YOUCAN_TOKEN}",
         "Accept": "application/json"
     }
+    
     try:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             return response.json().get('data', [])
         else:
-            st.error(f"⚠️ فشل الاتصال بـ YouCan Ship. كود الخطأ: {response.status_code}")
             return None
-    except Exception as e:
-        st.error(f"❌ حدث خطأ تقني: {e}")
+    except:
         return None
 
-# 5. التطبيق الرئيسي
-if check_password():
-    st.title("📊 لوحة تحكم YouCan Ship الحقيقية")
-    st.write("مرحباً ياسين، هذه البيانات يتم جلبها الآن مباشرة من حسابك.")
+# 4. واجهة المستخدم الاحترافية (تصميم Ozon)
+st.title("📊 لوحة تحكم كازا كوزميتيك الحية")
+st.write(f"تحديث تلقائي للفترة من {(datetime.now() - timedelta(days=30)).strftime('%d/%m')} إلى اليوم")
 
-    if st.button("🔄 تحديث البيانات والتحليل الآن"):
-        with st.spinner('جاري الاتصال بـ YouCan Ship...'):
-            real_orders = fetch_actual_data()
+if st.button("🔄 تحديث البيانات الآن"):
+    data = fetch_live_data()
+    
+    if data:
+        df = pd.DataFrame(data)
+        
+        # حساب الإحصائيات الحقيقية
+        total_orders = len(df)
+        delivered = len(df[df['status'].str.contains('delivered|complete', case=False, na=False)])
+        returned = len(df[df['status'].str.contains('return|refuse', case=False, na=False)])
+        ongoing = total_orders - (delivered + returned)
+        
+        # عرض البطاقات العلوية (Stats Cards)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("الطلبيات المستلمة", delivered, f"{round((delivered/total_orders)*100, 1)}%" if total_orders > 0 else "0%")
+        c2.metric("الطلبيات المرتجعة", returned, f"-{round((returned/total_orders)*100, 1)}%", delta_color="inverse")
+        c3.metric("في طور التوزيع", ongoing)
+        c4.metric("إجمالي المبالغ", f"{df['total_price'].sum()} DH")
+
+        st.divider()
+
+        # عرض الجدول المفصل والتحليل
+        col_left, col_right = st.columns([2, 1])
+        
+        with col_left:
+            st.subheader("📋 تفاصيل الشحنات الأخيرة")
+            st.dataframe(df[['tracking_number', 'city', 'status', 'total_price']], use_container_width=True)
             
-            if real_orders:
-                # تحويل البيانات لجدول (DataFrame) لسهولة الحساب
-                df = pd.DataFrame(real_orders)
-                
-                # حساب الإحصائيات الحقيقية من بياناتك
-                total_orders = len(df)
-                # ملاحظة: سنحاول استخراج الحالات بناءً على نظام YouCan (مثلاً: 'delivered', 'returned')
-                # إذا كانت الأسماء مختلفة في API الخاص بهم، سنقوم بتعديلها
-                delivered = len(df[df['status'].str.contains('deliver', case=False, na=False)])
-                returned = len(df[df['status'].str.contains('return', case=False, na=False)])
-                
-                # عرض الصناديق العلوية بأرقامك الحقيقية
-                c1, c2, c3 = st.columns(3)
-                c1.metric("إجمالي الطلبات", total_orders)
-                c2.metric("تم التوصيل", delivered)
-                c3.metric("المرتجعات", returned)
-
-                st.divider()
-
-                # عرض الجدول المفصل لطلبياتك
-                st.subheader("📋 تفاصيل الطلبات الحقيقية")
-                # عرض أعمدة محددة (تأكد أن هذه الأسماء موجودة في API YouCan)
-                display_cols = ['tracking_number', 'city', 'status', 'total_price']
-                st.dataframe(df[display_cols] if all(c in df.columns for c in display_cols) else df)
-
-                # تحليل Gemini للبيانات الحقيقية
-                st.divider()
-                st.subheader("🤖 تحليل ذكاء Gemini لنتائجك الحقيقية")
-                prompt = f"حلل أداء متجري بناءً على هذه الطلبيات الحقيقية: {real_orders[:5]}. أعطني نصيحة واحدة لتحسين التوصيل في المغرب."
-                ai_resp = model.generate_content(prompt)
-                st.success(ai_resp.text)
-            else:
-                st.warning("لم نتمكن من سحب البيانات. تأكد من أن التوكن (Token) صالح وأن هناك طلبيات في حسابك.")
+        with col_right:
+            st.subheader("🤖 تحليل Gemini AI")
+            prompt = f"حلل أداء متجري Casa Cosmetique: إجمالي {total_orders} طلب، {delivered} تم تسليمها، {returned} مرتجعة. قدم نصيحة سريعة."
+            try:
+                response = model.generate_content(prompt)
+                st.info(response.text)
+            except:
+                st.write("الذكاء الاصطناعي مشغول حالياً، حاول لاحقاً.")
+    else:
+        st.error("لم نتمكن من سحب البيانات تلقائياً. تأكد من أن التوكن فعال وأن هناك طلبيات في آخر 30 يوم.")
