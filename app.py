@@ -3,8 +3,8 @@ import google.generativeai as genai
 import requests
 import pandas as pd
 
-# 1. إعدادات الصفحة (يجب أن تكون أول سطر في الكود)
-st.set_page_config(page_title="Casa Cosmetique Dashboard", layout="wide")
+# 1. إعداد الصفحة
+st.set_page_config(page_title="Casa Cosmetique Real Dashboard", layout="wide")
 
 # 2. جلب المفاتيح من Secrets
 try:
@@ -13,16 +13,15 @@ try:
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error("⚠️ خطأ في الإعدادات: يرجى التأكد من وضع المفاتيح في Secrets بشكل صحيح.")
+    st.error("⚠️ خطأ في الإعدادات: يرجى التأكد من وضع GEMINI_KEY و DELIVERY_TOKEN في Secrets.")
     st.stop()
 
-# 3. دالة التحقق من تسجيل الدخول
+# 3. نظام تسجيل الدخول
 def check_password():
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
-
     if not st.session_state["password_correct"]:
-        st.title("🔐 تسجيل الدخول - كازا كوزميتيك")
+        st.title("🔐 دخول الإدارة - كازا كوزميتيك")
         user = st.text_input("اسم المستخدم", placeholder="yassine")
         pwd = st.text_input("كلمة المرور", type="password", placeholder="casa2026")
         if st.button("دخول"):
@@ -34,73 +33,64 @@ def check_password():
         return False
     return True
 
-# 4. التطبيق الرئيسي (يفتح فقط بعد الدخول)
-if check_password():
-    st.sidebar.success("تم تسجيل الدخول بنجاح ✅")
-    if st.sidebar.button("تسجيل الخروج"):
-        st.session_state["password_correct"] = False
-        st.rerun()
-
-    st.title("📊 لوحة تحكم كازا كوزميتيك الاحترافية (YouCan Ship)")
-    st.divider()
-
-    # محاكاة لبيانات YouCan Ship الحقيقية (بانتظار الربط النهائي)
-    # ملاحظة: سنقوم بعرض بيانات مشابهة لتصميم Ozon الذي أعجبك
-    summary_data = {
-        "Livrés": 941,
-        "Retournés": 228,
-        "En cours": 15,
-        "Total CRBT": "208,201 DH"
+# --- 4. دالة جلب البيانات الحقيقية من YouCan Ship ---
+def fetch_actual_data():
+    # الرابط الرسمي لـ API YouCan Ship لجلب الطلبات
+    url = "https://api.youcanship.com/v1/orders" 
+    headers = {
+        "Authorization": f"Bearer {YOUCAN_TOKEN}",
+        "Accept": "application/json"
     }
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json().get('data', [])
+        else:
+            st.error(f"⚠️ فشل الاتصال بـ YouCan Ship. كود الخطأ: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"❌ حدث خطأ تقني: {e}")
+        return None
 
-    # 1. الصناديق العلوية (Stats Cards)
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.info("📦 طرود تم تسليمها")
-        st.header(summary_data["Livrés"])
-    with c2:
-        st.warning("🔄 طرود مرتجعة")
-        st.header(summary_data["Retournés"])
-    with c3:
-        st.success("🚚 في طور التوزيع")
-        st.header(summary_data["En cours"])
-    with c4:
-        st.error("💰 المبالغ الإجمالية")
-        st.header(summary_data["Total CRBT"])
+# 5. التطبيق الرئيسي
+if check_password():
+    st.title("📊 لوحة تحكم YouCan Ship الحقيقية")
+    st.write("مرحباً ياسين، هذه البيانات يتم جلبها الآن مباشرة من حسابك.")
 
-    st.divider()
+    if st.button("🔄 تحديث البيانات والتحليل الآن"):
+        with st.spinner('جاري الاتصال بـ YouCan Ship...'):
+            real_orders = fetch_actual_data()
+            
+            if real_orders:
+                # تحويل البيانات لجدول (DataFrame) لسهولة الحساب
+                df = pd.DataFrame(real_orders)
+                
+                # حساب الإحصائيات الحقيقية من بياناتك
+                total_orders = len(df)
+                # ملاحظة: سنحاول استخراج الحالات بناءً على نظام YouCan (مثلاً: 'delivered', 'returned')
+                # إذا كانت الأسماء مختلفة في API الخاص بهم، سنقوم بتعديلها
+                delivered = len(df[df['status'].str.contains('deliver', case=False, na=False)])
+                returned = len(df[df['status'].str.contains('return', case=False, na=False)])
+                
+                # عرض الصناديق العلوية بأرقامك الحقيقية
+                c1, c2, c3 = st.columns(3)
+                c1.metric("إجمالي الطلبات", total_orders)
+                c2.metric("تم التوصيل", delivered)
+                c3.metric("المرتجعات", returned)
 
-    # 2. الرسوم البيانية والجداول
-    col_left, col_right = st.columns([1, 2])
+                st.divider()
 
-    with col_left:
-        st.subheader("📈 نسبة التوصيل")
-        chart_df = pd.DataFrame({
-            "الحالة": ["Livré", "Retourné"],
-            "العدد": [941, 228]
-        })
-        st.bar_chart(chart_df.set_index("الحالة"))
+                # عرض الجدول المفصل لطلبياتك
+                st.subheader("📋 تفاصيل الطلبات الحقيقية")
+                # عرض أعمدة محددة (تأكد أن هذه الأسماء موجودة في API YouCan)
+                display_cols = ['tracking_number', 'city', 'status', 'total_price']
+                st.dataframe(df[display_cols] if all(c in df.columns for c in display_cols) else df)
 
-    with col_right:
-        st.subheader("📋 تفاصيل الحساب (المبالغ)")
-        # جدول احترافي مثل Ozon
-        details = {
-            "STATUT": ["Livré", "Refusé", "En cours"],
-            "COLIS": [941, 23, 15],
-            "TOTAL CRBT": [208201, 4689, 3140],
-            "FRAIS": [33710, 200, 450],
-            "NET": [174491, -200, 2690]
-        }
-        st.table(pd.DataFrame(details))
-
-    # 3. تحليل Gemini AI (العقل المدبر)
-    st.divider()
-    st.subheader("🤖 تحليل خبير Gemini الذكي للأداء")
-    if st.button("تحليل البيانات الآن باستخدام AI"):
-        with st.spinner("جاري تحليل بيانات Casa Cosmetique..."):
-            prompt = f"حلل أداء المبيعات لشركة كازا كوزميتيك في المغرب. لدينا {summary_data['Livrés']} طلب تم توصيله و {summary_data['Retournés']} مرتجع. الصافي المالي هو 174,491 درهم. قدم نصائح لتقليل المرتجع وزيادة الأرباح."
-            try:
-                response = model.generate_content(prompt)
-                st.write(response.text)
-            except Exception as e:
-                st.error(f"حدث خطأ في الاتصال بالذكاء الاصطناعي: {e}")
+                # تحليل Gemini للبيانات الحقيقية
+                st.divider()
+                st.subheader("🤖 تحليل ذكاء Gemini لنتائجك الحقيقية")
+                prompt = f"حلل أداء متجري بناءً على هذه الطلبيات الحقيقية: {real_orders[:5]}. أعطني نصيحة واحدة لتحسين التوصيل في المغرب."
+                ai_resp = model.generate_content(prompt)
+                st.success(ai_resp.text)
+            else:
+                st.warning("لم نتمكن من سحب البيانات. تأكد من أن التوكن (Token) صالح وأن هناك طلبيات في حسابك.")
