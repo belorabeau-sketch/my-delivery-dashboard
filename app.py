@@ -1,86 +1,69 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import time
 
-# 1. إعدادات الصفحة الاحترافية
-st.set_page_config(page_title="Casa Cosmetique AI Ads Manager", layout="wide")
+# 1. إعداد الصفحة
+st.set_page_config(page_title="Casa Cosmetique | 7-Day Optimizer", layout="wide")
 
-st.title("🎯 TikTok Advanced Audience Insights")
-st.write("Comprehensive Analysis of 250,000 DH Ad Spend | Cooperative Casa Cosmetique")
+st.title("🚀 مُحسن حملات تيك توك (آخر 7 أيام)")
+st.write("تحليل الأداء واتخاذ قرارات الإيقاف والتحجيم (Scaling)")
 
-# المحاكاة الجانبية
-st.sidebar.header("Data Source")
-if st.sidebar.button("🔄 Sync Live Pixel Data"):
-    with st.spinner('Fetching Real-time Conversions...'):
-        time.sleep(1.5)
-        st.sidebar.success("Last Sync: Just Now")
-
-# --- 2. البيانات النموذجية للتحليل العميق (المغرب) ---
-
-# بيانات الاهتمامات (Interests)
-interests_data = {
-    'Interest': ['Organic Skincare', 'Hair Treatment', 'Traditional Hammam', 'Makeup Lovers', 'Fitness & Health'],
-    'Conversions': [450, 320, 280, 150, 90],
-    'ROAS': [5.2, 4.1, 3.9, 2.2, 1.5]
+# --- 2. محاكاة بيانات حقيقية لآخر 7 أيام لمنتجاتك ---
+data_7_days = {
+    'Campaign_Name': ['Acne_Cream_CBO', 'Saad_Oil_ABO', 'Fourmi_Creme_Promo', 'Gommage_Test', 'BackFree_Spray'],
+    'Status': ['Active', 'Active', 'Active', 'Active', 'Active'],
+    'Spend_7D': [4500, 3200, 1500, 800, 2200],
+    'Conversions': [42, 28, 5, 2, 18],
+    'CPA_DH': [107, 114, 300, 400, 122],
+    'ROAS': [4.5, 3.9, 1.2, 0.8, 3.2],
+    'Best_Age': ['25-34', '35-44', '18-24', 'All', '25-44'],
+    'Worst_Interest': ['Gaming', 'News', 'Fast Food', 'All', 'Sports']
 }
 
-# بيانات المدن المغربية (Cities)
-cities_data = {
-    'City': ['Casablanca', 'Marrakech', 'Rabat', 'Agadir', 'Tangier', 'Fes'],
-    'Sales': [600, 350, 200, 120, 80, 50],
-    'CPA_DH': [145, 160, 185, 210, 195, 240]
-}
+df = pd.DataFrame(data_7_days)
 
-# بيانات الديموغرافيا (Age & Gender)
-demo_data = {
-    'Category': ['Female 18-24', 'Female 25-34', 'Female 35-44', 'Male 25-34', 'Others'],
-    'Performance': [35, 45, 15, 3, 2] # نسبة المبيعات %
-}
+# --- 3. قسم التوصيات المباشرة (The Action Center) ---
+st.subheader("💡 قرارات الإدارة الفورية")
+cols = st.columns(len(df))
 
-# --- 3. عرض الرسوم البيانية ---
-
-# الصف الأول: الاهتمامات والمدن
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("📍 Top Converting Cities (Morocco)")
-    df_city = pd.DataFrame(cities_data)
-    fig_city = px.pie(df_city, values='Sales', names='City', hole=0.4,
-                      title="Sales Distribution per City")
-    st.plotly_chart(fig_city, use_container_width=True)
-
-with col2:
-    st.subheader("🔥 Winning Interests (Target IDs)")
-    df_int = pd.DataFrame(interests_data)
-    fig_int = px.bar(df_int, x='Interest', y='ROAS', color='Conversions',
-                     text_auto=True, title="ROAS by Audience Interest")
-    st.plotly_chart(fig_int, use_container_width=True)
+for i, row in df.iterrows():
+    with cols[i]:
+        # منطق اتخاذ القرار
+        if row['ROAS'] >= 3.5:
+            st.success(f"🔥 **SCALE**\n\n{row['Campaign_Name']}")
+            st.write(f"Budget: +20%")
+        elif row['ROAS'] >= 2.5:
+            st.info(f"✅ **KEEP RUNNING**\n\n{row['Campaign_Name']}")
+            st.write(f"Budget: Stable")
+        else:
+            st.error(f"🛑 **TURN OFF**\n\n{row['Campaign_Name']}")
+            st.write(f"Budget: 0 DH")
 
 st.divider()
 
-# الصف الثاني: الأعمار والجنس والتحليل الاستراتيجي
-col3, col4 = st.columns([1, 1])
+# --- 4. تفاصيل الاستبعاد (Exclusions) والجماهير ---
+c1, c2 = st.columns(2)
 
-with col3:
-    st.subheader("👥 Age & Gender Distribution")
-    df_demo = pd.DataFrame(demo_data)
-    fig_demo = px.bar(df_demo, x='Category', y='Performance', 
-                      color='Performance', title="Who is Buying?")
-    st.plotly_chart(fig_demo, use_container_width=True)
+with c1:
+    st.subheader("🚫 فئات يجب استبعادها فوراً (Exclude)")
+    exclude_logic = df[df['ROAS'] < 2.0]
+    if not exclude_logic.empty:
+        for _, r in exclude_logic.iterrows():
+            st.warning(f"في حملة **{r['Campaign_Name']}**: استبعد اهتمام **{r['Worst_Interest']}** وفئة **{r['Worst_Interest']}**")
+    
+    st.subheader("👥 الفئة العمرية الرابحة")
+    fig_age = px.bar(df, x='Campaign_Name', y='Conversions', color='Best_Age', 
+                     title="أكثر الأعمار شراءً لكل حملة")
+    st.plotly_chart(fig_age, use_container_width=True)
 
-with col4:
-    st.subheader("🤖 AI Strategy for New Campaign")
-    st.info("""
-    **Based on 250k DH Spend Data:**
-    1. **Primary Target:** Females (25-34) in **Casablanca & Marrakech**.
-    2. **Best Interest:** Focus on 'Organic Skincare' (Highest ROAS: 5.2).
-    3. **Action:** Stop spending in 'Fitness & Health' (Low ROI).
-    4. **Budget:** Reallocate 40% of budget to 'Hair Treatment' during weekends.
-    """)
+with c2:
+    st.subheader("💰 الميزانية اليومية المثالية للـ Scaling")
+    # منطق حساب الميزانية المقترحة (مثال: CPA * 10)
+    df['Suggested_Daily'] = df['CPA_DH'] * 5 
+    fig_budget = px.pie(df[df['ROAS'] > 3], values='Suggested_Daily', names='Campaign_Name',
+                        title="توزيع الميزانية المقترح للحملات الناجحة")
+    st.plotly_chart(fig_budget, use_container_width=True)
 
-# الجدول النهائي (البيانات الخام)
-st.divider()
-st.subheader("📋 Master Breakdown Report")
-final_df = pd.DataFrame(interests_data) # مثال للجدول
-st.table(final_df)
+# --- 5. جدول البيانات الخام لاتخاذ القرار اليدوي ---
+st.subheader("📋 تقرير الأداء التفصيلي (Last 7 Days)")
+st.table(df[['Campaign_Name', 'Spend_7D', 'Conversions', 'CPA_DH', 'ROAS', 'Best_Age']])
