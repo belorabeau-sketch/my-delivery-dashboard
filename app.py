@@ -3,74 +3,73 @@ import google.generativeai as genai
 import requests
 import pandas as pd
 
-# 1. إعداد الصفحة
-st.set_page_config(page_title="Casa Cosmetique Dashboard", layout="wide")
+# 1. إعدادات الصفحة
+st.set_page_config(page_title="Casa Cosmetique Final Fix", layout="wide")
 
 # 2. جلب المفاتيح من Secrets
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_KEY"]
-    YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"]
+    YOUCAN_TOKEN = st.secrets["DELIVERY_TOKEN"].strip() # حذف أي مسافات زائدة
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception as e:
-    st.error("⚠️ تأكد من إضافة GEMINI_KEY و DELIVERY_TOKEN في Secrets.")
+except:
+    st.error("⚠️ تأكد من وضع المفاتيح في Secrets.")
     st.stop()
 
-# 3. دالة جلب البيانات مع فحص الأخطاء (Debug Mode)
-def fetch_data_debug():
-    # الرابط الأساسي لـ YouCan Ship
+# 3. دالة جلب البيانات الاحترافية
+def fetch_data_final():
+    # هذا هو الرابط الأكثر دقة لجلب الطلبات في YouCan Ship
     url = "https://api.youcanship.com/v1/orders"
     
     headers = {
-        "Authorization": f"Bearer {YOUCAN_TOKEN.strip()}",
+        "Authorization": f"Bearer {YOUCAN_TOKEN}",
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
     
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
         
-        # إذا كان الرد ناجحاً
+        # إذا نجح الاتصال
         if response.status_code == 200:
-            return response.json().get('data', []), "SUCCESS"
-        
-        # إذا كان هناك خطأ في المفتاح (Unauthorized)
-        elif response.status_code == 401:
-            return None, "المفتاح (Token) غير صالحة أو منتهي الصلاحية. يرجى إعادة نسخه من YouCan Ship."
-        
-        # أي خطأ آخر
+            return response.json().get('data', []), "SUCCESS", None
         else:
-            return None, f"خطأ من السيرفر: {response.status_code} - {response.text[:100]}"
+            # إرجاع نص الخطأ الخام لفهمه
+            return None, f"خطأ {response.status_code}", response.text
             
     except Exception as e:
-        return None, f"فشل الاتصال تماماً: {str(e)}"
+        return None, "فشل اتصال", str(e)
 
-# 4. واجهة المستخدم
-st.title("📊 لوحة تحكم كازا كوزميتيك - فحص الاتصال")
+# 4. الواجهة الرسومية (تصميم Ozon الاحترافي)
+st.title("📊 لوحة تحكم كازا كوزميتيك - الإصدار النهائي")
 
-if st.button("🚀 محاولة جلب البيانات الحقيقية الآن"):
-    with st.spinner('جاري فحص الاتصال بـ YouCan Ship...'):
-        orders, message = fetch_data_debug()
+if st.button("🚀 جلب البيانات الحقيقية الآن"):
+    with st.spinner('جاري الاتصال بـ YouCan Ship...'):
+        orders, status, raw_debug = fetch_data_final()
         
-        if message == "SUCCESS":
+        if status == "SUCCESS":
             if orders:
-                st.success(f"✅ تم الاتصال بنجاح! تم العثور على {len(orders)} طلب.")
                 df = pd.DataFrame(orders)
+                # عرض الإحصائيات بأسلوب Ozon
+                total = len(df)
+                st.success(f"✅ تم جلب {total} طلب بنجاح!")
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("إجمالي الطلبات", total)
+                c2.metric("المبلغ الإجمالي", f"{df['total_price'].sum()} DH" if 'total_price' in df.columns else "0")
+                
+                st.divider()
+                st.subheader("📋 تفاصيل الشحنات")
                 st.dataframe(df)
             else:
-                st.warning("✅ تم الاتصال بنجاح، ولكن حسابك لا يحتوي على أي طلبيات حالياً.")
+                st.warning("✅ تم الاتصال، ولكن لا توجد طلبيات في حسابك حالياً.")
         else:
-            st.error(f"❌ فشل الاتصال. السبب: {message}")
-            
-            # تعليمات الإصلاح بناءً على تجربة YouCan Ship
-            st.info("""
-            **خطوات الإصلاح المقترحة:**
-            1. تأكد من أن التوكن في **Secrets** لا يحتوي على مسافات زائدة.
-            2. في حسابك على YouCan Ship، تأكد أن التوكن لديه صلاحية **Orders: Read**.
-            3. جرب صنع توكن جديد (New Token) ووضعه في Secrets.
-            """)
+            st.error(f"❌ فشل الاتصال: {status}")
+            with st.expander("🔍 تفاصيل تقنية للمبرمج (Debug)"):
+                st.write("الرد القادم من السيرفر:")
+                st.code(raw_debug)
 
-# 5. تحليل Gemini (اختياري في حال وجود بيانات)
+# 5. تحليل Gemini
 st.divider()
-st.subheader("🤖 ذكاء Gemini الاصطناعي")
-st.write("بمجرد نجاح الاتصال، سيقوم Gemini بتحليل أرباحك هنا.")
+st.subheader("🤖 تحليل الذكاء الاصطناعي")
+st.write("بمجرد ظهور البيانات أعلاه، سيقوم Gemini بتحليلها لك هنا.")
