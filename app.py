@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-# 1. إعدادات الصفحة والجماليات
+# 1. إعداد الصفحة وتصميم Ozon الاحترافي
 st.set_page_config(page_title="Casa Cosmetique | YouCan Ship Dashboard", layout="wide")
 
 # 2. جلب المفاتيح من Secrets
@@ -33,36 +33,40 @@ if not st.session_state.logged_in:
             st.error("بيانات الدخول خاطئة")
     st.stop()
 
-# --- 4. دالة جلب البيانات الاحترافية من YouCan Ship ---
+# --- 4. دالة جلب البيانات بناءً على وثائق Postman الرسمية ---
 def fetch_youcan_data():
-    # محاولة جلب الطلبات بآخر تحديثات الرابط
-    url = "https://api.youcanship.com/v1/orders?limit=100"
+    # الرابط المعتمد في الوثائق التي أرسلتها
+    url = "https://api.youcanship.com/v1/ship/orders"
+    
     headers = {
         "Authorization": f"Bearer {YOUCAN_TOKEN}",
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36"
+        "Content-Type": "application/json"
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=15)
+        # جلب الطلبات (بشكل افتراضي يجلب آخر الطلبات)
+        response = requests.get(url, headers=headers, timeout=20)
+        
         if response.status_code == 200:
-            return response.json().get('data', []), "SUCCESS"
+            # الوثائق تشير أن البيانات تكون داخل حقل 'data'
+            result = response.json()
+            return result.get('data', []), "SUCCESS"
         else:
-            return None, f"Status: {response.status_code}"
+            return None, f"Status: {response.status_code} - {response.text[:100]}"
     except Exception as e:
         return None, str(e)
 
-# --- 5. واجهة العرض (Ozon Express Style) ---
-st.sidebar.title("Coopérative Casa Cosmetique")
+# --- 5. واجهة العرض (Live Dashboard) ---
+st.title("📊 لوحة تحكم Casa Cosmetique (YouCan Ship)")
+st.markdown(f"تاريخ اليوم: {datetime.now().strftime('%Y-%m-%d')}")
+
 if st.sidebar.button("تسجيل الخروج"):
     st.session_state.logged_in = False
     st.rerun()
 
-st.title("📊 لوحة التحكم الحية (Real-time)")
-st.markdown("---")
-
-if st.button("🔄 تحديث ومزامنة البيانات الآن"):
-    with st.spinner('جاري جلب أرقامك الحقيقية من YouCan Ship...'):
+if st.button("🔄 تحديث ومزامنة البيانات الحقيقية"):
+    with st.spinner('جاري الاتصال بـ YouCan Ship باستخدام البروتوكول الرسمي...'):
         orders, status = fetch_youcan_data()
         
         if status == "SUCCESS" and orders:
@@ -70,38 +74,39 @@ if st.button("🔄 تحديث ومزامنة البيانات الآن"):
             
             # حساب الإحصائيات الحقيقية
             total_orders = len(df)
-            # تحديد الحالات بناءً على رد السيرفر
-            delivered = len(df[df['status'].str.contains('deliver|complete', case=False, na=False)])
+            delivered = len(df[df['status'].str.contains('delivered|complete|success', case=False, na=False)])
             returned = len(df[df['status'].str.contains('return|refuse|cancel', case=False, na=False)])
             ongoing = total_orders - (delivered + returned)
             
-            # حساب المبالغ المالية
-            total_val = df['total_price'].astype(float).sum() if 'total_price' in df.columns else 0
+            # محاولة حساب المبالغ
+            price_col = 'total_price' if 'total_price' in df.columns else 'amount'
+            total_val = df[price_col].astype(float).sum() if price_col in df.columns else 0
 
-            # عرض الصناديق (Metrics) مثل تصميم Ozon
+            # عرض الصناديق (Metrics)
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("الطلبات المسلمة", delivered, f"{round((delivered/total_orders)*100, 1)}%" if total_orders > 0 else "0%")
             c2.metric("المرتجعات", returned, f"-{round((returned/total_orders)*100, 1)}%", delta_color="inverse")
-            c3.metric("في الطريق", ongoing)
-            c4.metric("إجمالي المداخيل", f"{total_val} DH")
+            c3.metric("في طور التوصيل", ongoing)
+            c4.metric("إجمالي المبالغ", f"{total_val} DH")
 
             st.divider()
 
-            # تقسيم الصفحة للجدول والذكاء الاصطناعي
+            # عرض الجدول والتحليل
             col_t, col_ai = st.columns([2, 1])
             
             with col_t:
                 st.subheader("📋 قائمة الشحنات الحقيقية")
-                st.dataframe(df[['tracking_number', 'city', 'status', 'total_price']] if 'tracking_number' in df.columns else df, use_container_width=True)
+                # عرض الأعمدة المتوفرة في الـ API
+                st.dataframe(df, use_container_width=True)
             
             with col_ai:
                 st.subheader("🤖 تحليل Gemini AI")
-                prompt = f"حلل أداء المبيعات لشركة كازا كوزميتيك: إجمالي الطلبات {total_orders}، التسليم {delivered}، المرتجع {returned}. قدم نصيحة تجارية باللغة العربية."
+                prompt = f"حلل أداء شركة كازا كوزميتيك: {total_orders} طلب، {delivered} تسليم، {returned} مرتجع. قدم نصيحة باللغة العربية."
                 try:
-                    response = model.generate_content(prompt)
-                    st.success(response.text)
+                    ai_resp = model.generate_content(prompt)
+                    st.info(ai_resp.text)
                 except:
-                    st.write("الذكاء الاصطناعي يحلل البيانات الآن...")
+                    st.write("الذكاء الاصطناعي يحلل البيانات...")
         else:
-            st.error(f"❌ لم نتمكن من جلب البيانات. السبب: {status}")
-            st.info("تأكد من وجود طلبيات نشطة في حسابك على YouCan Ship.")
+            st.error(f"❌ فشل جلب البيانات. السبب: {status}")
+            st.info("تأكد أن التوكن الجديد 'wallenssine' موجود في Secrets.")
