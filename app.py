@@ -37,14 +37,14 @@ if not st.session_state.tiktok_connected:
     st.info("Please click 'Login with TikTok Ads' in the sidebar to visualize your pixel data.")
     st.stop()
 
-# --- 2. Mock Data: Realistic 7-Day Performance ---
+# --- 2. Mock Data: Realistic 7-Day Performance with Updated Names ---
 data_7_days = {
-    'Campaign_Name': ['Acne_Cream_CBO', 'Saad_Oil_ABO', 'Fourmi_Creme_Promo', 'Gommage_Body_Test', 'BackFree_Spray'],
-    'Ad_Group_ID': ['172839405', '182940506', '192050607', '202160708', '212270809'],
-    'Spend_7D': [4500, 3200, 1500, 800, 2200],
-    'Conversions': [45, 30, 4, 1, 20],
-    'CPA_DH': [100, 106, 375, 800, 110],
-    'ROAS': [4.8, 3.9, 1.1, 0.5, 3.5],
+    'Campaign_Name': ['Cream', 'Oil Skin Care', 'Fourmi_Creme_Promo', 'Body_Gommage', 'BackFree_Spray'],
+    'Ad_Group_ID': ['ID_9928374', 'ID_8827361', 'ID_7726352', 'ID_6625343', 'ID_5524334'],
+    'Spend_7D': [5200, 3800, 1200, 900, 2500],
+    'Conversions': [58, 35, 3, 2, 22],
+    'CPA_DH': [89, 108, 400, 450, 113],
+    'ROAS': [5.1, 4.2, 0.9, 0.7, 3.8],
     'Best_Age': ['25-34', '35-44', '18-24', '18-24', '25-44'],
     'Top_City': ['Casablanca', 'Marrakech', 'Rabat', 'Agadir', 'Tangier']
 }
@@ -90,5 +90,5 @@ with c2:
     st.plotly_chart(fig_city, use_container_width=True)
 
 # --- 5. Full Report ---
-st.subheader("📋 Granular 7-Day Performance Table")
+st.subheader("📋 Master Breakdown Table (Last 7 Days)")
 st.dataframe(df[['Campaign_Name', 'Ad_Group_ID', 'Spend_7D', 'Conversions', 'ROAS', 'Best_Age', 'Top_City']], use_container_width=True)
