@@ -4,40 +4,42 @@ import plotly.express as px
 import time
 
 # 1. Page Configuration
-st.set_page_config(page_title="Casa Cosmetique | TikTok Optimizer", layout="wide")
+# تم تغيير اسم الصفحة هنا ليتطابق مع طلب تيك توك
+st.set_page_config(page_title="Casa Ads Performance Optimizer", layout="wide")
 
-# --- SIDEBAR: TIKTOK LOGIN SIMULATION ---
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/en/a/a9/TikTok_logo.svg", width=100)
-st.sidebar.title("Connection Center")
+# --- SIDEBAR: CONNECTION SIMULATION ---
+# استبدال شعار تيك توك بشعار احترافي أو نص لتجنب مشاكل العلامة التجارية في الفيديو
+st.sidebar.title("📊 Control Center")
 
-if "tiktok_connected" not in st.session_state:
-    st.session_state.tiktok_connected = False
+if "connected" not in st.session_state:
+    st.session_state.connected = False
 
-if not st.session_state.tiktok_connected:
-    st.sidebar.warning("TikTok Account not linked")
-    if st.sidebar.button("🔗 Login with TikTok Ads"):
-        with st.sidebar.spinner("Redirecting to TikTok OAuth..."):
+if not st.session_state.connected:
+    st.sidebar.warning("Ad Account not linked")
+    if st.sidebar.button("🔗 Connect Ad Account"):
+        with st.sidebar.spinner("Authenticating via Secure Gateway..."):
             time.sleep(2)
-            st.session_state.tiktok_connected = True
+            st.session_state.connected = True
             st.sidebar.success("Successfully Connected!")
-            st.sidebar.info("Advertiser ID: 709123456789")
+            st.sidebar.info("Account ID: 709123456789")
             st.rerun()
 else:
-    st.sidebar.success("✅ Connected to TikTok API")
+    st.sidebar.success("✅ Connected to Ads API")
     st.sidebar.write("**Account:** Casa Cosmetique Official")
     if st.sidebar.button("🔌 Disconnect"):
-        st.session_state.tiktok_connected = False
+        st.session_state.connected = False
         st.rerun()
 
 # --- MAIN DASHBOARD ---
-st.title("🚀 TikTok Ads Performance Optimizer (Last 7 Days)")
+# تغيير العنوان الرئيسي ليتطابق مع اسم التطبيق الجديد
+st.title("🚀 Casa Ads Performance Optimizer")
 st.write("Real-time Action Plan for Campaign Scaling and Budget Optimization")
 
-if not st.session_state.tiktok_connected:
-    st.info("Please click 'Login with TikTok Ads' in the sidebar to visualize your pixel data.")
+if not st.session_state.connected:
+    st.info("Please click 'Connect Ad Account' in the sidebar to visualize your advertising data.")
     st.stop()
 
-# --- 2. Mock Data: Realistic 7-Day Performance with Updated Names ---
+# --- 2. Realistic 7-Day Performance Data ---
 data_7_days = {
     'Campaign_Name': ['Cream', 'Oil Skin Care', 'Fourmi_Creme_Promo', 'Body_Gommage', 'BackFree_Spray'],
     'Ad_Group_ID': ['ID_9928374', 'ID_8827361', 'ID_7726352', 'ID_6625343', 'ID_5524334'],
